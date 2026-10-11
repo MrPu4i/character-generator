@@ -182,3 +182,39 @@ main {
     border-color: #3b5bdb;
     color: #fff;
 }
+
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.actions button {
+    flex: 1;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #3b5bdb;
+    background: #fff;
+    color: #3b5bdb;
+    cursor: pointer;
+}
+
+#save {
+    background: #3b5bdb;
+    color: #fff;
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: #333;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 8px;
+}
+
+.toast.hidden {
+    display: none;
+}

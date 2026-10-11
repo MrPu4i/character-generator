@@ -10,7 +10,7 @@ async function init() {
     const response = await fetch('/api/catalog');
     catalog = await response.json();
 
-    character = JSON.parse(sessionStorage.getItem('character') || 'null');
+    character = loadCharacter();
 
     const content = document.getElementById('content');
     if (!character) {
@@ -18,10 +18,15 @@ async function init() {
         return;
     }
 
+    persist();   // фиксируем в sessionStorage (в т.ч. если пришли по ссылке)
+
     document.getElementById('change-composition').addEventListener('click', () => {
         sessionStorage.setItem('mode', 'edit');
         location.href = 'select.html';
     });
+
+    document.getElementById('save').addEventListener('click', saveCharacter);
+    document.getElementById('copy-link').addEventListener('click', copyLink);
 
     render();
 }
@@ -258,4 +263,102 @@ async function regenerateBlock(block) {
     character = await response.json();
     persist();
     render();
+}
+
+function loadCharacter() {
+    const hash = location.hash.slice(1);   // без символа '#'
+    if (hash) {
+        try {
+            const json = LZString.decompressFromEncodedURIComponent(hash);
+            if (json) return JSON.parse(json);
+        } catch (e) {
+            console.error('Не удалось прочитать ссылку', e);
+        }
+    }
+    return JSON.parse(sessionStorage.getItem('character') || 'null');
+}
+
+function effectiveValue(key) {
+    return Object.prototype.hasOwnProperty.call(character.fix, key)
+        ? character.fix[key]
+        : character.val[key];
+}
+
+function findProp(key) {
+    for (const block of catalog) {
+        const found = block.properties.find(p => p.propKey === key);
+        if (found) return found;
+    }
+    return null;
+}
+
+function buildLink() {
+    const json = JSON.stringify(character);
+    const encoded = LZString.compressToEncodedURIComponent(json);
+    return location.origin + location.pathname + '#' + encoded;
+}
+
+// временный заголовок: «Эльф, 140 лет» (имя появится, когда добавим шаблоны)
+function characterTitle() {
+    const parts = [];
+
+    const race = findProp('race');
+    if (race) parts.push(valueText(race, effectiveValue('race')));
+
+    const age = findProp('age');
+    if (age) {
+        const ageText = valueText(age, effectiveValue('age'));
+        if (ageText) parts.push(ageText + (age.unit ? ' ' + age.unit : ''));
+    }
+
+    return parts.filter(Boolean).join(', ') || 'Безымянный персонаж';
+}
+
+async function copyLink() {
+    const url = buildLink();
+    try {
+        await navigator.clipboard.writeText(url);
+        showToast('Ссылка скопирована');
+    } catch (e) {
+        prompt('Скопируйте ссылку:', url);   // запасной вариант
+    }
+}
+
+function saveCharacter() {
+    const url = buildLink();
+    const list = JSON.parse(localStorage.getItem('characters') || '[]');
+    const existingId = sessionStorage.getItem('characterId');
+
+    if (existingId) {
+        const item = list.find(x => x.id === existingId);
+        if (item) {
+            item.url = url;
+            item.title = characterTitle();
+            item.date = new Date().toISOString();
+            localStorage.setItem('characters', JSON.stringify(list));
+            showToast('Персонаж сохранён');
+            return;
+        }
+    }
+
+    const item = {
+        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+        title: characterTitle(),
+        url,
+        date: new Date().toISOString()
+    };
+
+    list.push(item);
+    localStorage.setItem('characters', JSON.stringify(list));
+    sessionStorage.setItem('characterId', item.id);
+    showToast('Персонаж сохранён');
+}
+
+let toastTimer = null;
+function showToast(text) {
+    const el = document.getElementById('toast');
+    el.textContent = text;
+    el.classList.remove('hidden');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.add('hidden'), 2000);
 }
