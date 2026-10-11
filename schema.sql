@@ -19,9 +19,10 @@ CREATE TABLE properties (
 );
 
 CREATE TABLE prop_values (
-    val_id          INTEGER PRIMARY KEY AUTOINCREMENT,ы
+    val_id          INTEGER PRIMARY KEY AUTOINCREMENT,
     prop_id    INTEGER NOT NULL REFERENCES properties(prop_id),
+    val_key     TEXT NOT NULL UNIQUE,   --elf. male, red
     text        TEXT NOT NULL,       -- эльфик, мужчинка, красноееее
     weight     REAL NOT NULL DEFAULT 1,
-    tags        TEXT                          -- теги через запятую (пока так)
+    tags        TEXT          -- теги через запятую (пока так)
 );
