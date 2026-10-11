@@ -71,7 +71,7 @@ public class GenerationEngineTests
     {
         var engine = BuildEngine();
         var result = engine.Generate(fix: new() { ["race"] = "elf" }, seed: 7);
-        Assert.Equal("elf", result.Val["race"]);
+        Assert.Equal("elf", result.Fix["race"]);
     }
 
     [Fact]

@@ -49,31 +49,34 @@ public class GenerationEngine
         var rng = seed.HasValue ? new Random(seed.Value) : new Random();
         var mode = fix.Count > 0 ? "free" : "linked";
         var dirty = DirtySet(blockKey);
-        var val = new Dictionary<string, string>();
+
+        var val = new Dictionary<string, string>();        // только сгенерированное
+        var effective = new Dictionary<string, string>();  // fix поверх сгенерированного
 
         foreach (var prop in _ordered)
         {
-            if (fix.TryGetValue(prop.PropKey, out var fixedValue))
-            {
-                val[prop.PropKey] = fixedValue;
-                continue;
-            }
+            string generated;
 
             if (!dirty.Contains(prop.PropKey) &&
                 existingVal.TryGetValue(prop.PropKey, out var keep))
             {
-                val[prop.PropKey] = keep;
-                continue;
+                generated = keep;
+            }
+            else
+            {
+                generated = prop.ValueType switch
+                {
+                    "list" => prop.Values.Count == 0
+                                    ? ""
+                                    : PickWeighted(prop, effective, rng, boost: mode == "linked").ValKey,
+                    "computed" => Compute(prop, effective),
+                    _ => ""
+                };
             }
 
-            val[prop.PropKey] = prop.ValueType switch
-            {
-                "list" => prop.Values.Count == 0
-                                ? ""
-                                : PickWeighted(prop, val, rng, boost: mode == "linked").ValKey,
-                "computed" => Compute(prop, val),
-                _ => ""
-            };
+            val[prop.PropKey] = generated;
+            effective[prop.PropKey] =
+                fix.TryGetValue(prop.PropKey, out var fixedValue) ? fixedValue : generated;
         }
 
         return new GenerationResult(val, fix, mode);

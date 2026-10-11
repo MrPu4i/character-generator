@@ -32,7 +32,7 @@ function render() {
 
     for (const block of catalog) {
         const shown = block.properties.filter(p => !p.isService && character.show[p.propKey]);
-        if (shown.length === 0 && !block.isRoot) continue;   // пустой блок не показываем
+        if (shown.length === 0 && !block.isRoot) continue;
 
         const blockEl = document.createElement('section');
         blockEl.className = 'block';
@@ -44,6 +44,17 @@ function render() {
         title.className = 'block-title';
         title.textContent = block.title;
         head.appendChild(title);
+
+        // --- кнопка перегенерации блока ---
+        const regen = document.createElement('button');
+        regen.type = 'button';
+        regen.className = 'regen';
+        regen.title = 'Перегенерировать блок';
+        regen.textContent = '🎲';
+        regen.addEventListener('click', () => regenerateBlock(block));
+        head.appendChild(regen);
+        // ----------------------------------
+
 
         blockEl.appendChild(head);
 
@@ -148,4 +159,103 @@ function startEdit(row, prop) {
         else if (e.key === 'Escape') finish(false);
     });
     input.addEventListener('blur', () => finish(true));
+}
+
+function showDialog(text, buttons) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('modal');
+        const textEl = document.getElementById('modal-text');
+        const buttonsEl = document.getElementById('modal-buttons');
+
+        textEl.textContent = text;
+        buttonsEl.innerHTML = '';
+
+        for (const b of buttons) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = b.label;
+            if (b.primary) btn.className = 'primary';
+            btn.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                resolve(b.value);
+            });
+            buttonsEl.appendChild(btn);
+        }
+
+        modal.classList.remove('hidden');
+    });
+}
+
+async function applyGenerate(fix, show) {
+    const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fix, show })
+    });
+    character = await response.json();
+    persist();
+    render();
+}
+
+async function regenerateBlock(block) {
+    // --- корневой блок: особый диалог ---
+    if (block.isRoot) {
+        const choice = await showDialog(
+            `Перегенерация блока «${block.title}» меняет основу персонажа.`,
+            [
+                { label: 'Поменять всё', value: 'all', primary: true },
+                { label: 'Оставить как есть', value: 'keep' },
+                { label: 'Отмена', value: 'cancel' }
+            ]);
+
+        if (choice === 'cancel' || choice === null) return;
+
+        if (choice === 'all') {
+            // всё пересобрать, правки стереть -> связанный режим
+            await applyGenerate({}, character.show);
+            return;
+        }
+
+        // «Оставить как есть»: корни новые, всё остальное фиксируем как есть
+        const coreKeys = new Set(block.properties.map(p => p.propKey));
+        const newFix = { ...character.fix };
+        for (const [k, v] of Object.entries(character.val)) {
+            if (!coreKeys.has(k)) newFix[k] = character.fix[k] ?? v;
+        }
+        await applyGenerate(newFix, character.show);
+        return;
+    }
+
+    // --- обычный блок ---
+    const ownKeys = block.properties.map(p => p.propKey);
+    const edited = ownKeys.filter(k => Object.prototype.hasOwnProperty.call(character.fix, k));
+
+    if (edited.length > 0) {
+        const ok = await showDialog(
+            `В блоке «${block.title}» есть ручные правки (${edited.length}). При перегенерации они будут потеряны.`,
+            [
+                { label: 'Перегенерировать', value: 'yes', primary: true },
+                { label: 'Отмена', value: 'no' }
+            ]);
+        if (ok !== 'yes') return;
+    }
+
+    const newFix = { ...character.fix };
+    for (const k of ownKeys) delete newFix[k];
+
+    const response = await fetch('/api/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            v: character.v,
+            val: character.val,
+            show: character.show,
+            fix: newFix,
+            block: block.blockKey
+        })
+    });
+
+    character = await response.json();
+    persist();
+    render();
 }
