@@ -13,7 +13,7 @@ INSERT INTO properties (block_id, prop_key, title, value_type, default_value, un
 ((SELECT block_id FROM blocks WHERE block_key='appearance'), 'height', 'Рост',       'list',     NULL, 'см',  0, 1),
 ((SELECT block_id FROM blocks WHERE block_key='appearance'), 'weight', 'Вес',        'computed', NULL, 'кг',  0, 2),
 ((SELECT block_id FROM blocks WHERE block_key='appearance'), 'hair_color', 'Цвет волос',  'list', NULL, NULL, 0, 3),
-((SELECT block_id FROM blocks WHERE block_key='appearance'), 'build',  'Телосложение', 'list',     NULL, NULL, 0, 4),
+((SELECT block_id FROM blocks WHERE block_key='appearance'), 'build',  'Телосложение', 'list',     NULL, NULL, 0, ),
 ((SELECT block_id FROM blocks WHERE block_key='character'), 'temperament',   'Темперамент', 'list',     NULL, NULL,  0, 1),
 ((SELECT block_id FROM blocks WHERE block_key='character'), 'worldview',   'Мировоззрение',  'list',     NULL, NULL,  0, 2);
 

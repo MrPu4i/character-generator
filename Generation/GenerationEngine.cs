@@ -6,13 +6,13 @@ public class GenerationEngine
 {
     private const double TagBoost = 5.0;
 
-    // Зависимости вычисляемых свойств (в коде, раз формулы в коде)
     private static readonly Dictionary<string, string[]> ComputedDeps = new()
     {
         ["weight"] = new[] { "height", "build" }
     };
 
     private readonly Dictionary<string, PropertyDto> _byKey;
+    private readonly Dictionary<string, List<PropertyDto>> _byBlock;
     private readonly Dictionary<string, List<string>> _parents;
     private readonly List<PropertyDto> _ordered;
 
@@ -22,6 +22,8 @@ public class GenerationEngine
             .SelectMany(b => b.Properties)
             .ToDictionary(p => p.PropKey);
 
+        _byBlock = catalog.ToDictionary(b => b.BlockKey, b => b.Properties);
+
         _parents = new Dictionary<string, List<string>>();
         foreach (var prop in _byKey.Values)
             _parents[prop.PropKey] = GetParents(prop);
@@ -29,19 +31,38 @@ public class GenerationEngine
         _ordered = SortTopologically();
     }
 
-    public GenerationResult Generate(Dictionary<string, string>? fix = null, int? seed = null)
+    public IReadOnlyCollection<string> PropertyKeys => _byKey.Keys;
+
+    public GenerationResult Generate(
+        Dictionary<string, string>? fix = null,
+        int? seed = null)
+        => Regenerate(new Dictionary<string, string>(), fix, blockKey: null, seed);
+
+    // existingVal — что уже есть; dirty — что перебрасываем заново
+    public GenerationResult Regenerate(
+        Dictionary<string, string> existingVal,
+        Dictionary<string, string>? fix,
+        string? blockKey,
+        int? seed = null)
     {
         fix ??= new Dictionary<string, string>();
         var rng = seed.HasValue ? new Random(seed.Value) : new Random();
         var mode = fix.Count > 0 ? "free" : "linked";
+        var dirty = DirtySet(blockKey);
         var val = new Dictionary<string, string>();
 
         foreach (var prop in _ordered)
         {
-            // Зафиксированное значение берём как есть
             if (fix.TryGetValue(prop.PropKey, out var fixedValue))
             {
                 val[prop.PropKey] = fixedValue;
+                continue;
+            }
+
+            if (!dirty.Contains(prop.PropKey) &&
+                existingVal.TryGetValue(prop.PropKey, out var keep))
+            {
+                val[prop.PropKey] = keep;
                 continue;
             }
 
@@ -51,14 +72,38 @@ public class GenerationEngine
                                 ? ""
                                 : PickWeighted(prop, val, rng, boost: mode == "linked").ValKey,
                 "computed" => Compute(prop, val),
-                _ => ""   // template реализуем позже
+                _ => ""
             };
         }
 
         return new GenerationResult(val, fix, mode);
     }
 
-    // ---- родители и порядок ----
+    private HashSet<string> DirtySet(string? blockKey)
+    {
+        if (blockKey == null || !_byBlock.ContainsKey(blockKey))
+            return new HashSet<string>(_byKey.Keys);
+
+        var dirty = new HashSet<string>(_byBlock[blockKey].Select(p => p.PropKey));
+
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            foreach (var prop in _byKey.Values)
+            {
+                if (dirty.Contains(prop.PropKey)) continue;
+                if (_parents[prop.PropKey].Any(dirty.Contains))
+                {
+                    dirty.Add(prop.PropKey);
+                    changed = true;
+                }
+            }
+        }
+        return dirty;
+    }
+
+    // ---- дальше всё как было ----
 
     private List<string> GetParents(PropertyDto prop)
     {
@@ -117,8 +162,6 @@ public class GenerationEngine
 
         return result;
     }
-
-    // ---- выбор и вычисление ----
 
     private static ValueDto PickWeighted(
         PropertyDto prop,

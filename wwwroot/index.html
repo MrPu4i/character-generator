@@ -3,12 +3,22 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Character Generator</title>
+    <title>Генерация персонажей</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <h1>Title character generator</h1>
-    <p>Zaglushka rabotaet.</p>
+    <main>
+        <h1>Генерация персонажей</h1>
+        <button id="create" type="button">Создать персонажа</button>
+    </main>
+    <script>
+        document.getElementById('create').addEventListener('click', () => {
+            sessionStorage.removeItem('character');
+            sessionStorage.setItem('mode', 'new');
+            location.href = 'select.html';
+        });
+    </script>
 </body>
 
 </html>

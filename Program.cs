@@ -1,6 +1,7 @@
 using CharGen.Data;
 using CharGen.Generation;
 using Microsoft.Data.Sqlite;
+using CharGen.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,10 +40,24 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// ѕоказать все свойства (пока нет экрана выбора)
+static Dictionary<string, bool> AllShown(GenerationEngine engine)
+    => engine.PropertyKeys.ToDictionary(k => k, _ => true);
+
 app.MapGet("/api/catalog", (CatalogRepository repo) => repo.GetCatalog());
 
-// временна€ ссылка дл€ ручной проверки движка (потом заменим на /api/generate)
-app.MapGet("/api/debug/generate", (GenerationEngine engine, int? seed) =>
-    engine.Generate(seed: seed ?? 42));
+app.MapPost("/api/generate", (GenerateRequest req, GenerationEngine engine) =>
+{
+    var fix = req.Fix ?? new Dictionary<string, string>();
+    var result = engine.Generate(fix);
+    return new CharacterDto(1, result.Val, req.Show ?? AllShown(engine), result.Fix);
+});
+
+app.MapPost("/api/regenerate", (RegenerateRequest req, GenerationEngine engine) =>
+{
+    var fix = req.Fix ?? new Dictionary<string, string>();
+    var result = engine.Regenerate(req.Val ?? new Dictionary<string, string>(), fix, req.Block);
+    return new CharacterDto(req.V ?? 1, result.Val, req.Show ?? AllShown(engine), result.Fix);
+});
 
 app.Run();
