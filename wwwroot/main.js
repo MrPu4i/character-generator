@@ -139,6 +139,10 @@ function duplicateCharacter(item) {
     ch.id = newId();                       // копия — новый слот с новым id
     const link = buildCharacterLink(ch);
 
+    if (link.length > MAX_URL_LENGTH) {
+        showToast('Ссылка длинная (' + link.length + ' символов)');
+    }
+
     const list = getGallery();
     list.push({
         id: ch.id,

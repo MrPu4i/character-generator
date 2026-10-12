@@ -31,9 +31,16 @@ if (!File.Exists(dbPath))
 }
 
 var repository = new CatalogRepository(connectionString);
+var catalogData = repository.GetCatalog();
+
+var catalogWarnings = CatalogValidator.Validate(catalogData);
+foreach (var warning in catalogWarnings)
+    Console.WriteLine("Справочник: " + warning);
+if (catalogWarnings.Count > 0)
+    Console.WriteLine($"Всего предупреждений справочника: {catalogWarnings.Count}");
 
 builder.Services.AddSingleton(repository);
-builder.Services.AddSingleton(new GenerationEngine(repository.GetCatalog()));
+builder.Services.AddSingleton(new GenerationEngine(catalogData));
 
 var app = builder.Build();
 

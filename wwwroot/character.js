@@ -15,6 +15,8 @@ async function init() {
         return;
     }
 
+    fillMissingShow(character, catalog);
+
     slot = character.id ? findSlotById(character.id) : null;
 
     // конфликт: персонаж есть в коллекции, но ссылка другая
@@ -35,6 +37,7 @@ async function init() {
 
     render();
     updateActions();
+    updateLinkWarning();
 }
 
 // ---------- рендер ----------
@@ -43,9 +46,13 @@ function render() {
     const content = document.getElementById('content');
     content.innerHTML = '';
 
+    let shownBlocks = 0;
+
     for (const block of catalog) {
         const shown = block.properties.filter(p => !p.isService && character.show[p.propKey]);
         if (shown.length === 0 && !block.isRoot) continue;
+
+        shownBlocks++;
 
         const blockEl = document.createElement('section');
         blockEl.className = 'block';
@@ -74,6 +81,13 @@ function render() {
         blockEl.appendChild(propsEl);
 
         content.appendChild(blockEl);
+    }
+
+    if (shownBlocks === 1) {
+        const note = document.createElement('p');
+        note.className = 'hint';
+        note.textContent = 'Дополнительные блоки скрыты. Нажмите «Показать», чтобы вернуть их.';
+        content.appendChild(note);
     }
 }
 
@@ -174,6 +188,7 @@ function updateActions() {
 
 function persistToLink() {
     history.replaceState(null, '', buildCharacterLink(character));
+    updateLinkWarning();
 }
 
 function createSlot() {

@@ -404,3 +404,18 @@ main {
     color: #888;
     font-size: 0.85rem;
 }
+
+.warning {
+    background: #fff3bf;
+    border: 1px solid #ffe066;
+    color: #664d03;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.9rem;
+}
+
+.hint {
+    color: #888;
+    font-size: 0.85rem;
+}

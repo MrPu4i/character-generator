@@ -1,11 +1,13 @@
 // ===== Ссылки и персонаж =====
 
+const CHARACTER_VERSION = 1;
+
 function decodeLink(url) {
     const hash = String(url || '').split('#')[1];
     if (!hash) return null;
     try {
         const json = LZString.decompressFromEncodedURIComponent(hash);
-        return json ? JSON.parse(json) : null;
+        return json ? normalizeCharacter(JSON.parse(json)) : null;
     } catch (e) {
         return null;
     }
@@ -16,10 +18,27 @@ function decodeCharacterFromHash() {
     if (!hash) return null;
     try {
         const json = LZString.decompressFromEncodedURIComponent(hash);
-        return json ? JSON.parse(json) : null;
+        return json ? normalizeCharacter(JSON.parse(json)) : null;
     } catch (e) {
         return null;
     }
+}
+
+function normalizeCharacter(ch) {
+    if (!ch || typeof ch !== 'object') return null;
+
+    const out = {
+        v: typeof ch.v === 'number' ? ch.v : 1,
+        val: (ch.val && typeof ch.val === 'object') ? ch.val : {},
+        fix: (ch.fix && typeof ch.fix === 'object') ? ch.fix : {},
+        show: (ch.show && typeof ch.show === 'object') ? ch.show : {}
+    };
+    if (ch.id) out.id = ch.id;
+
+    // сюда будут добавляться миграции для будущих версий
+    if (out.v < CHARACTER_VERSION) out.v = CHARACTER_VERSION;
+
+    return out;
 }
 
 function encodeCharacter(character) {
@@ -210,4 +229,30 @@ function showPrompt(text, options = {}) {
         ],
         { input: options }
     );
+}
+
+function fillMissingShow(character, catalog) {
+    for (const block of catalog) {
+        for (const prop of block.properties) {
+            if (!(prop.propKey in character.show)) {
+                character.show[prop.propKey] = true;   // новое свойство — по умолчанию показано
+            }
+        }
+    }
+}
+
+const MAX_URL_LENGTH = 2000;
+
+function updateLinkWarning() {
+    const el = document.getElementById('link-warning');
+    if (!el) return;
+
+    const len = location.href.length;
+    if (len > MAX_URL_LENGTH) {
+        el.textContent = 'Ссылка длинная: ' + len + ' символов. В некоторых браузерах '
+            + 'и мессенджерах она может не открыться — сохраните важное в описании.';
+        el.classList.remove('hidden');
+    } else {
+        el.classList.add('hidden');
+    }
 }
