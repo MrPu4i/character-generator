@@ -11,23 +11,44 @@
     <main>
         <div class="topbar">
             <a href="index.html">← На главную</a>
-            <button id="change-composition" type="button">Изменить состав</button>
+            <button id="panel-toggle" type="button">Показать</button>
         </div>
+
         <div id="content"></div>
+
         <div class="actions">
-            <button id="save" type="button">Сохранить</button>
-            <button id="copy-link" type="button">Скопировать ссылку</button>
+            <button id="create" type="button">Создать</button>
+            <button id="update" type="button">Обновить текущего персонажа</button>
+            <button id="save-as-new" type="button">Сохранить как нового</button>
+            <button id="delete" type="button">Удалить</button>
         </div>
 
         <div id="toast" class="toast hidden"></div>
     </main>
+
     <div id="modal" class="modal hidden">
         <div class="modal-box">
             <p id="modal-text"></p>
             <div id="modal-buttons" class="modal-buttons"></div>
         </div>
     </div>
+    <div id="panel-backdrop" class="backdrop hidden"></div>
+
+    <aside id="show-panel" class="panel hidden">
+        <div class="panel-head">
+            <h2>Что показывать</h2>
+        </div>
+        <div class="panel-body">
+            <div id="panel-root"></div>
+            <div id="panel-other"></div>
+        </div>
+        <div class="panel-actions">
+            <button id="panel-apply" type="button">Применить</button>
+            <button id="panel-cancel" type="button">Отмена</button>
+        </div>
+    </aside>
     <script src="lz-string.min.js"></script>
+    <script src="shared.js"></script>
     <script src="character.js"></script>
 </body>
 

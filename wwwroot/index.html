@@ -9,16 +9,30 @@
 
 <body>
     <main>
-        <h1>Генерация персонажей</h1>
-        <button id="create" type="button">Создать персонажа</button>
+        <div class="topbar">
+            <h1>Генерация персонажей</h1>
+            <button id="create" type="button">Создать персонажа</button>
+        </div>
+
+        <div id="list"></div>
+
+        <div id="empty" class="empty hidden">
+            <p>Здесь пока пусто. Создайте первого персонажа.</p>
+            <button id="create-first" type="button">Создать первого</button>
+        </div>
+
+        <div class="actions">
+            <button id="export" type="button">Экспорт списка</button>
+            <button id="import" type="button">Импорт списка</button>
+            <input id="import-file" type="file" accept="application/json" hidden>
+        </div>
+
+        <div id="toast" class="toast hidden"></div>
     </main>
-    <script>
-        document.getElementById('create').addEventListener('click', () => {
-            sessionStorage.removeItem('character');
-            sessionStorage.setItem('mode', 'new');
-            location.href = 'select.html';
-        });
-    </script>
+
+    <script src="lz-string.min.js"></script>
+    <script src="shared.js"></script>
+    <script src="main.js"></script>
 </body>
 
 </html>

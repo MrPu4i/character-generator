@@ -10,18 +10,8 @@ Content-Type: application/json
 
 {
   "v": 1,
-  "val": {
-    "race": "elf",
-    "gender": "female",
-    "age": "age_140",
-    "origin": "commoner",
-    "height": "h_130",
-    "hair_color": "silver",
-    "build": "normal",
-    "temperament": "sanguine",
-    "worldview": "evil",
-    "weight": "58"
-  },
+  "id": "test-321",
+  "val": {},
   "show": {},
   "fix": {},
   "block": "appearance"

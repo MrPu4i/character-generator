@@ -6,19 +6,17 @@ async function init() {
     const response = await fetch('/api/catalog');
     catalog = await response.json();
 
-    const existing = JSON.parse(sessionStorage.getItem('character') || 'null');
-
     const rootBlocks = catalog.filter(b => b.isRoot);
     const otherBlocks = catalog.filter(b => !b.isRoot);
 
-    renderBlocks(document.getElementById('root-blocks'), rootBlocks, true, existing);
-    renderBlocks(document.getElementById('other-blocks'), otherBlocks, false, existing);
+    renderBlocks(document.getElementById('root-blocks'), rootBlocks, true);
+    renderBlocks(document.getElementById('other-blocks'), otherBlocks, false);
 
     document.querySelectorAll('#other-blocks .block').forEach(b => updateBlockState(b));
     document.getElementById('generate').addEventListener('click', generate);
 }
 
-function renderBlocks(container, blocks, isRoot, existing) {
+function renderBlocks(container, blocks, isRoot) {
     for (const block of blocks) {
         const props = block.properties.filter(p => !p.isService);
 
@@ -74,9 +72,7 @@ function renderBlocks(container, blocks, isRoot, existing) {
 
             const check = document.createElement('input');
             check.type = 'checkbox';
-            check.checked = isRoot ? true
-                : existing ? !!existing.show[prop.propKey]
-                    : true;
+            check.checked = true;
             check.disabled = isRoot;
             check.dataset.prop = prop.propKey;
             check.addEventListener('change', () => updateBlockState(blockEl));
@@ -115,17 +111,6 @@ async function generate() {
     const show = {};
     document.querySelectorAll('.prop input').forEach(c => { show[c.dataset.prop] = c.checked; });
 
-    const existing = JSON.parse(sessionStorage.getItem('character') || 'null');
-
-    // «Изменить состав»: только фильтр показа, ничего не перегенерируем
-    if (existing && sessionStorage.getItem('mode') === 'edit') {
-        existing.show = show;
-        sessionStorage.setItem('character', JSON.stringify(existing));
-        location.href = 'character.html';
-        return;
-    }
-
-    // «Создать персонажа»: генерируем нового
     const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,7 +118,5 @@ async function generate() {
     });
     const character = await response.json();
 
-    sessionStorage.setItem('character', JSON.stringify(character));
-    sessionStorage.setItem('mode', 'new');
-    location.href = 'character.html';
+    location.href = buildCharacterLink(character);   // уходим по ссылке с персонажем
 }

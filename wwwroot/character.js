@@ -1,8 +1,7 @@
 let catalog = [];
 let character = null;
-function persist() {
-    sessionStorage.setItem('character', JSON.stringify(character));
-}
+let dirty = false;
+let slot = null;
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -10,26 +9,35 @@ async function init() {
     const response = await fetch('/api/catalog');
     catalog = await response.json();
 
-    character = loadCharacter();
-
-    const content = document.getElementById('content');
+    character = decodeCharacterFromHash();
     if (!character) {
-        content.textContent = 'Персонаж не найден. Создайте нового.';
+        location.replace('index.html');
         return;
     }
 
-    persist();   // фиксируем в sessionStorage (в т.ч. если пришли по ссылке)
+    slot = character.id ? findSlotById(character.id) : null;
 
-    document.getElementById('change-composition').addEventListener('click', () => {
-        sessionStorage.setItem('mode', 'edit');
-        location.href = 'select.html';
-    });
+    // конфликт: персонаж есть в коллекции, но ссылка другая
+    if (slot && hashOf(location.href) !== hashOf(slot.url)) {
+        const resolved = await resolveConflict();
+        if (!resolved) return;   // отмена — уже ушли на главную
+    }
 
-    document.getElementById('save').addEventListener('click', saveCharacter);
-    document.getElementById('copy-link').addEventListener('click', copyLink);
+    document.getElementById('create').addEventListener('click', createSlot);
+    document.getElementById('update').addEventListener('click', updateSlot);
+    document.getElementById('save-as-new').addEventListener('click', saveAsNew);
+    document.getElementById('delete').addEventListener('click', deleteSlot);
+
+    document.getElementById('panel-toggle').addEventListener('click', openPanel);
+    document.getElementById('panel-apply').addEventListener('click', applyShow);
+    document.getElementById('panel-cancel').addEventListener('click', closePanel);
+    document.getElementById('panel-backdrop').addEventListener('click', closePanel);
 
     render();
+    updateActions();
 }
+
+// ---------- рендер ----------
 
 function render() {
     const content = document.getElementById('content');
@@ -50,7 +58,6 @@ function render() {
         title.textContent = block.title;
         head.appendChild(title);
 
-        // --- кнопка перегенерации блока ---
         const regen = document.createElement('button');
         regen.type = 'button';
         regen.className = 'regen';
@@ -58,16 +65,14 @@ function render() {
         regen.textContent = '🎲';
         regen.addEventListener('click', () => regenerateBlock(block));
         head.appendChild(regen);
-        // ----------------------------------
-
 
         blockEl.appendChild(head);
 
         const propsEl = document.createElement('div');
         propsEl.className = 'props open';
         for (const prop of shown) propsEl.appendChild(renderProp(prop));
-
         blockEl.appendChild(propsEl);
+
         content.appendChild(blockEl);
     }
 }
@@ -82,7 +87,7 @@ function renderProp(prop) {
     row.appendChild(name);
 
     const edited = Object.prototype.hasOwnProperty.call(character.fix, prop.propKey);
-    const raw = edited ? character.fix[prop.propKey] : character.val[prop.propKey];
+    const raw = effective(character, prop.propKey);
 
     const valueEl = document.createElement('span');
     valueEl.className = 'prop-value';
@@ -105,8 +110,8 @@ function renderProp(prop) {
         revert.textContent = '↺';
         revert.addEventListener('click', () => {
             delete character.fix[prop.propKey];
+            markDirty();
             render();
-            persist();  // ← сохраняем в sessionStorage
         });
         row.appendChild(revert);
     }
@@ -114,26 +119,9 @@ function renderProp(prop) {
     return row;
 }
 
-// для списка возвращаем текст по ключу; для computed/template — как есть
-function valueText(prop, raw) {
-    if (raw === undefined || raw === null || raw === '') return '';
-    if (prop.valueType === 'list') {
-        const found = prop.values.find(v => v.valKey === raw);
-        return found ? found.text : raw;   // ручной текст показываем как есть
-    }
-    return raw;
-}
-
-function displayValue(prop, raw) {
-    const text = valueText(prop, raw);
-    if (!text) return '—';
-    return prop.unit ? text + ' ' + prop.unit : text;
-}
-
 function startEdit(row, prop) {
     const valueEl = row.querySelector('.prop-value');
-    const edited = Object.prototype.hasOwnProperty.call(character.fix, prop.propKey);
-    const raw = edited ? character.fix[prop.propKey] : character.val[prop.propKey];
+    const raw = effective(character, prop.propKey);
 
     const input = document.createElement('input');
     input.type = 'text';
@@ -150,13 +138,11 @@ function startEdit(row, prop) {
     function finish(save) {
         if (finished) return;
         finished = true;
-
         if (save && input.value !== before) {
             character.fix[prop.propKey] = input.value;
+            markDirty();
         }
-
         render();
-        persist();
     }
 
     input.addEventListener('keydown', (e) => {
@@ -166,30 +152,100 @@ function startEdit(row, prop) {
     input.addEventListener('blur', () => finish(true));
 }
 
-function showDialog(text, buttons) {
-    return new Promise((resolve) => {
-        const modal = document.getElementById('modal');
-        const textEl = document.getElementById('modal-text');
-        const buttonsEl = document.getElementById('modal-buttons');
+// ---------- состояние кнопок ----------
 
-        textEl.textContent = text;
-        buttonsEl.innerHTML = '';
-
-        for (const b of buttons) {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.textContent = b.label;
-            if (b.primary) btn.className = 'primary';
-            btn.addEventListener('click', () => {
-                modal.classList.add('hidden');
-                resolve(b.value);
-            });
-            buttonsEl.appendChild(btn);
-        }
-
-        modal.classList.remove('hidden');
-    });
+function markDirty() {
+    dirty = true;
+    updateActions();
 }
+
+function updateActions() {
+    const inGallery = !!slot;
+
+    document.getElementById('create').classList.toggle('hidden', inGallery);
+    document.getElementById('update').classList.toggle('hidden', !inGallery);
+    document.getElementById('save-as-new').classList.toggle('hidden', !inGallery);
+    document.getElementById('delete').classList.toggle('hidden', !inGallery);
+
+    document.getElementById('update').disabled = !dirty;
+}
+
+// ---------- действия со слотами ----------
+
+function persistToLink() {
+    history.replaceState(null, '', buildCharacterLink(character));
+}
+
+function createSlot() {
+    if (!character.id) character.id = newId();
+    persistToLink();
+
+    const item = {
+        id: character.id,
+        title: nextTitle(),
+        date: new Date().toISOString(),
+        url: location.href
+    };
+
+    const list = getGallery();
+    list.push(item);
+    saveGallery(list);
+
+    slot = item;
+    dirty = false;
+    updateActions();
+    showToast('Сохранено: ' + item.title);
+}
+
+function updateSlot() {
+    if (!dirty) return;
+    persistToLink();
+
+    const list = getGallery();
+    const item = list.find(x => x.id === character.id);
+    if (item) {
+        item.url = location.href;
+        item.date = new Date().toISOString();
+        saveGallery(list);
+        slot = item;
+    }
+
+    dirty = false;
+    updateActions();
+    showToast('Персонаж обновлён');
+}
+
+function saveAsNew() {
+    character.id = newId();
+    persistToLink();
+
+    const item = {
+        id: character.id,
+        title: nextTitle(),
+        date: new Date().toISOString(),
+        url: location.href
+    };
+
+    const list = getGallery();
+    list.push(item);
+    saveGallery(list);
+
+    slot = item;
+    dirty = false;
+    updateActions();
+    showToast('Сохранено как ' + item.title);
+}
+
+async function deleteSlot() {
+    if (!(await showConfirm('Удалить этого персонажа из коллекции?'))) return;
+
+    saveGallery(getGallery().filter(x => x.id !== character.id));
+    slot = null;
+    updateActions();
+    showToast('Удалено из коллекции');
+}
+
+// ---------- перегенерация блоков ----------
 
 async function applyGenerate(fix, show) {
     const response = await fetch('/api/generate', {
@@ -197,13 +253,13 @@ async function applyGenerate(fix, show) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fix, show })
     });
-    character = await response.json();
-    persist();
+    const result = await response.json();
+    character = { ...result, id: character.id };   // id слота сохраняем
+    markDirty();
     render();
 }
 
 async function regenerateBlock(block) {
-    // --- корневой блок: особый диалог ---
     if (block.isRoot) {
         const choice = await showDialog(
             `Перегенерация блока «${block.title}» меняет основу персонажа.`,
@@ -216,12 +272,10 @@ async function regenerateBlock(block) {
         if (choice === 'cancel' || choice === null) return;
 
         if (choice === 'all') {
-            // всё пересобрать, правки стереть -> связанный режим
             await applyGenerate({}, character.show);
             return;
         }
 
-        // «Оставить как есть»: корни новые, всё остальное фиксируем как есть
         const coreKeys = new Set(block.properties.map(p => p.propKey));
         const newFix = { ...character.fix };
         for (const [k, v] of Object.entries(character.val)) {
@@ -231,7 +285,6 @@ async function regenerateBlock(block) {
         return;
     }
 
-    // --- обычный блок ---
     const ownKeys = block.properties.map(p => p.propKey);
     const edited = ownKeys.filter(k => Object.prototype.hasOwnProperty.call(character.fix, k));
 
@@ -253,6 +306,7 @@ async function regenerateBlock(block) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             v: character.v,
+            id: character.id,
             val: character.val,
             show: character.show,
             fix: newFix,
@@ -260,105 +314,185 @@ async function regenerateBlock(block) {
         })
     });
 
-    character = await response.json();
-    persist();
+    const result = await response.json();
+    character = { ...result, id: character.id };
+    markDirty();
     render();
 }
+// ---------- боковая панель «Показать» ----------
 
-function loadCharacter() {
-    const hash = location.hash.slice(1);   // без символа '#'
-    if (hash) {
-        try {
-            const json = LZString.decompressFromEncodedURIComponent(hash);
-            if (json) return JSON.parse(json);
-        } catch (e) {
-            console.error('Не удалось прочитать ссылку', e);
+function openPanel() {
+    const rootPanel = document.getElementById('panel-root');
+    const otherPanel = document.getElementById('panel-other');
+    rootPanel.innerHTML = '';
+    otherPanel.innerHTML = '';
+
+    renderPanelBlocks(rootPanel, catalog.filter(b => b.isRoot), true);
+    renderPanelBlocks(otherPanel, catalog.filter(b => !b.isRoot), false);
+
+    document.querySelectorAll('#panel-other .block').forEach(b => updatePanelBlockState(b));
+    document.getElementById('panel-backdrop').classList.remove('hidden');
+    document.getElementById('show-panel').classList.remove('hidden');
+}
+
+function closePanel() {
+    document.getElementById('panel-backdrop').classList.add('hidden');
+    document.getElementById('show-panel').classList.add('hidden');
+}
+
+function applyShow() {
+    const show = {};
+    document.querySelectorAll('#show-panel .prop input').forEach(c => {
+        show[c.dataset.prop] = c.checked;
+    });
+    character.show = show;
+
+    // как «Обновить»: перезаписываем ссылку и слот
+    persistToLink();
+    const list = getGallery();
+    const item = list.find(x => x.id === character.id);
+    if (item) {
+        item.url = location.href;
+        item.date = new Date().toISOString();
+        saveGallery(list);
+        slot = item;
+    }
+
+    dirty = false;
+    closePanel();
+    render();
+    updateActions();
+}
+
+function renderPanelBlocks(container, blocks, isRoot) {
+    for (const block of blocks) {
+        const props = block.properties.filter(p => !p.isService);
+
+        const blockEl = document.createElement('div');
+        blockEl.className = 'block';
+
+        const head = document.createElement('div');
+        head.className = 'block-head';
+
+        const blockCheck = document.createElement('input');
+        blockCheck.type = 'checkbox';
+        blockCheck.className = 'block-check';
+        blockCheck.disabled = isRoot;
+        blockCheck.addEventListener('change', () => {
+            const value = blockCheck.checked;
+            blockEl.querySelectorAll('.prop input').forEach(c => { c.checked = value; });
+            updatePanelBlockState(blockEl);
+        });
+        head.appendChild(blockCheck);
+
+        const title = document.createElement('span');
+        title.className = 'block-title';
+        title.textContent = block.title;
+        head.appendChild(title);
+
+        if (isRoot) {
+            const lock = document.createElement('span');
+            lock.className = 'lock';
+            lock.textContent = '🔒 обязательно';
+            head.appendChild(lock);
+        }
+
+        blockEl.appendChild(head);
+
+        const propsEl = document.createElement('div');
+        propsEl.className = 'props open';
+
+        for (const prop of props) {
+            const row = document.createElement('label');
+            row.className = 'prop';
+
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.checked = isRoot ? true : !!character.show[prop.propKey];
+            check.disabled = isRoot;
+            check.dataset.prop = prop.propKey;
+            check.addEventListener('change', () => updatePanelBlockState(blockEl));
+            row.appendChild(check);
+
+            const name = document.createElement('span');
+            name.textContent = prop.title;
+            row.appendChild(name);
+
+            propsEl.appendChild(row);
+        }
+
+        blockEl.appendChild(propsEl);
+        container.appendChild(blockEl);
+
+        if (isRoot) {
+            blockCheck.checked = true;
+            blockCheck.indeterminate = false;
         }
     }
-    return JSON.parse(sessionStorage.getItem('character') || 'null');
 }
 
-function effectiveValue(key) {
-    return Object.prototype.hasOwnProperty.call(character.fix, key)
-        ? character.fix[key]
-        : character.val[key];
-}
+function updatePanelBlockState(blockEl) {
+    const checks = [...blockEl.querySelectorAll('.prop input')];
+    const blockCheck = blockEl.querySelector('.block-check');
+    const checkedCount = checks.filter(c => c.checked).length;
 
-function findProp(key) {
-    for (const block of catalog) {
-        const found = block.properties.find(p => p.propKey === key);
-        if (found) return found;
-    }
-    return null;
-}
-
-function buildLink() {
-    const json = JSON.stringify(character);
-    const encoded = LZString.compressToEncodedURIComponent(json);
-    return location.origin + location.pathname + '#' + encoded;
-}
-
-// временный заголовок: «Эльф, 140 лет» (имя появится, когда добавим шаблоны)
-function characterTitle() {
-    const parts = [];
-
-    const race = findProp('race');
-    if (race) parts.push(valueText(race, effectiveValue('race')));
-
-    const age = findProp('age');
-    if (age) {
-        const ageText = valueText(age, effectiveValue('age'));
-        if (ageText) parts.push(ageText + (age.unit ? ' ' + age.unit : ''));
-    }
-
-    return parts.filter(Boolean).join(', ') || 'Безымянный персонаж';
-}
-
-async function copyLink() {
-    const url = buildLink();
-    try {
-        await navigator.clipboard.writeText(url);
-        showToast('Ссылка скопирована');
-    } catch (e) {
-        prompt('Скопируйте ссылку:', url);   // запасной вариант
+    if (checkedCount === 0) {
+        blockCheck.checked = false;
+        blockCheck.indeterminate = false;
+    } else if (checkedCount === checks.length) {
+        blockCheck.checked = true;
+        blockCheck.indeterminate = false;
+    } else {
+        blockCheck.checked = false;
+        blockCheck.indeterminate = true;
     }
 }
 
-function saveCharacter() {
-    const url = buildLink();
-    const list = JSON.parse(localStorage.getItem('characters') || '[]');
-    const existingId = sessionStorage.getItem('characterId');
+// ---------- конфликт id ----------
 
-    if (existingId) {
-        const item = list.find(x => x.id === existingId);
+function hashOf(url) {
+    return String(url || '').split('#')[1] || '';
+}
+
+async function resolveConflict() {
+    const choice = await showDialog(
+        'Вам прислан персонаж с тем же идентификатором (id), который уже есть у вас в коллекции. Это разные персонажи. Что сделать?',
+        [
+            { label: 'Перезаписать своего', value: 'overwrite', primary: true },
+            { label: 'Создать нового из присланного', value: 'fork' },
+            { label: 'Отмена', value: 'cancel' }
+        ]);
+
+    if (choice === 'cancel' || choice === null) {
+        location.replace('index.html');
+        return false;
+    }
+
+    if (choice === 'overwrite') {
+        const list = getGallery();
+        const item = list.find(x => x.id === character.id);
         if (item) {
-            item.url = url;
-            item.title = characterTitle();
+            item.url = location.href;
             item.date = new Date().toISOString();
-            localStorage.setItem('characters', JSON.stringify(list));
-            showToast('Персонаж сохранён');
-            return;
+            saveGallery(list);
+            slot = item;
         }
+        return true;
     }
+
+    // fork: присланному даём новый id и заводим отдельный слот; твой старый остаётся
+    character.id = newId();
+    persistToLink();
 
     const item = {
-        id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
-        title: characterTitle(),
-        url,
-        date: new Date().toISOString()
+        id: character.id,
+        title: nextTitle(),
+        date: new Date().toISOString(),
+        url: location.href
     };
-
+    const list = getGallery();
     list.push(item);
-    localStorage.setItem('characters', JSON.stringify(list));
-    sessionStorage.setItem('characterId', item.id);
-    showToast('Персонаж сохранён');
-}
-
-let toastTimer = null;
-function showToast(text) {
-    const el = document.getElementById('toast');
-    el.textContent = text;
-    el.classList.remove('hidden');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.add('hidden'), 2000);
+    saveGallery(list);
+    slot = item;
+    return true;
 }

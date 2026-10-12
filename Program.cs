@@ -50,14 +50,14 @@ app.MapPost("/api/generate", (GenerateRequest req, GenerationEngine engine) =>
 {
     var fix = req.Fix ?? new Dictionary<string, string>();
     var result = engine.Generate(fix);
-    return new CharacterDto(1, result.Val, req.Show ?? AllShown(engine), result.Fix);
+    return new CharacterDto(1, result.Val, req.Show ?? AllShown(engine), result.Fix, null);
 });
 
 app.MapPost("/api/regenerate", (RegenerateRequest req, GenerationEngine engine) =>
 {
     var fix = req.Fix ?? new Dictionary<string, string>();
     var result = engine.Regenerate(req.Val ?? new Dictionary<string, string>(), fix, req.Block);
-    return new CharacterDto(req.V ?? 1, result.Val, req.Show ?? AllShown(engine), result.Fix);
+    return new CharacterDto(req.V ?? 1, result.Val, req.Show ?? AllShown(engine), result.Fix, req.Id);
 });
 
 app.Run();
