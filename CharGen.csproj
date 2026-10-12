@@ -10,5 +10,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
   </ItemGroup>
+  <ItemGroup>
+  <None Update="schema.sql" CopyToOutputDirectory="PreserveNewest" />
+  <None Update="seed.sql" CopyToOutputDirectory="PreserveNewest" />
+</ItemGroup>
 
 </Project>

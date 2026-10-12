@@ -20,7 +20,7 @@ async function init() {
     slot = character.id ? findSlotById(character.id) : null;
 
     // конфликт: персонаж есть в коллекции, но ссылка другая
-    if (slot && hashOf(location.href) !== hashOf(slot.url)) {
+    if (slot && hashOf(location.href) !== slotHash(slot)) {
         const resolved = await resolveConflict();
         if (!resolved) return;   // отмена — уже ушли на главную
     }
@@ -187,19 +187,21 @@ function updateActions() {
 // ---------- действия со слотами ----------
 
 function persistToLink() {
-    history.replaceState(null, '', buildCharacterLink(character));
+    const hash = encodeCharacter(character);
+    history.replaceState(null, '', buildCharacterLinkFromHash(hash));
     updateLinkWarning();
+    return hash;
 }
 
 function createSlot() {
     if (!character.id) character.id = newId();
-    persistToLink();
+    const hash = persistToLink();
 
     const item = {
         id: character.id,
         title: nextTitle(),
         date: new Date().toISOString(),
-        url: location.href
+        data: hash
     };
 
     const list = getGallery();
@@ -214,12 +216,12 @@ function createSlot() {
 
 function updateSlot() {
     if (!dirty) return;
-    persistToLink();
+    const hash = persistToLink();
 
     const list = getGallery();
     const item = list.find(x => x.id === character.id);
     if (item) {
-        item.url = location.href;
+        item.data = hash;
         item.date = new Date().toISOString();
         saveGallery(list);
         slot = item;
@@ -232,15 +234,14 @@ function updateSlot() {
 
 function saveAsNew() {
     character.id = newId();
-    persistToLink();
+    const hash = persistToLink();
 
     const item = {
         id: character.id,
         title: nextTitle(),
         date: new Date().toISOString(),
-        url: location.href
+        data: hash
     };
-
     const list = getGallery();
     list.push(item);
     saveGallery(list);
@@ -363,11 +364,11 @@ function applyShow() {
     character.show = show;
 
     // как «Обновить»: перезаписываем ссылку и слот
-    persistToLink();
+    const hash = persistToLink();
     const list = getGallery();
     const item = list.find(x => x.id === character.id);
     if (item) {
-        item.url = location.href;
+        item.data = hash;
         item.date = new Date().toISOString();
         saveGallery(list);
         slot = item;
@@ -487,7 +488,7 @@ async function resolveConflict() {
         const list = getGallery();
         const item = list.find(x => x.id === character.id);
         if (item) {
-            item.url = location.href;
+            item.data = hashOf(location.href);
             item.date = new Date().toISOString();
             saveGallery(list);
             slot = item;
@@ -497,13 +498,13 @@ async function resolveConflict() {
 
     // fork: присланному даём новый id и заводим отдельный слот; твой старый остаётся
     character.id = newId();
-    persistToLink();
+    const hash = persistToLink();
 
     const item = {
         id: character.id,
         title: nextTitle(),
         date: new Date().toISOString(),
-        url: location.href
+        data: hash
     };
     const list = getGallery();
     list.push(item);

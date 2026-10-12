@@ -2,17 +2,6 @@
 
 const CHARACTER_VERSION = 1;
 
-function decodeLink(url) {
-    const hash = String(url || '').split('#')[1];
-    if (!hash) return null;
-    try {
-        const json = LZString.decompressFromEncodedURIComponent(hash);
-        return json ? normalizeCharacter(JSON.parse(json)) : null;
-    } catch (e) {
-        return null;
-    }
-}
-
 function decodeCharacterFromHash() {
     const hash = location.hash.slice(1);
     if (!hash) return null;
@@ -46,9 +35,30 @@ function encodeCharacter(character) {
 }
 
 // каталог страницы + имя файла -> стабильная ссылка на экран персонажа
-function buildCharacterLink(character) {
+function buildCharacterLinkFromHash(hash) {
     const dir = location.origin + location.pathname.replace(/\/[^/]*$/, '/');
-    return dir + 'character.html#' + encodeCharacter(character);
+    return dir + 'character.html#' + hash;
+}
+
+function buildCharacterLink(character) {
+    return buildCharacterLinkFromHash(encodeCharacter(character));
+}
+
+function decodeHash(hash) {
+    if (!hash) return null;
+    try {
+        const json = LZString.decompressFromEncodedURIComponent(hash);
+        return json ? normalizeCharacter(JSON.parse(json)) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+// у слота храним только «хвост» (data) — без домена. url оставляем для старых записей.
+function slotHash(item) {
+    if (item.data) return item.data;
+    if (item.url) return String(item.url).split('#')[1] || '';
+    return '';
 }
 
 function newId() {

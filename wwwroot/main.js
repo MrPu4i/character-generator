@@ -42,7 +42,7 @@ function render() {
 }
 
 function renderCard(item) {
-    const ch = decodeLink(item.url);
+    const ch = decodeHash(slotHash(item));
 
     const card = document.createElement('div');
     card.className = 'card';
@@ -114,7 +114,7 @@ function actionButton(label, handler) {
 // ---------- действия ----------
 
 function openCharacter(item) {
-    location.href = item.url;   // всегда по ссылке
+    location.href = 'character.html#' + slotHash(item);
 }
 
 async function editDescription(item) {
@@ -133,11 +133,12 @@ async function editDescription(item) {
 }
 
 function duplicateCharacter(item) {
-    const ch = decodeLink(item.url);
+    const ch = decodeHash(slotHash(item));
     if (!ch) { showToast('Не удалось прочитать персонажа'); return; }
 
-    ch.id = newId();                       // копия — новый слот с новым id
-    const link = buildCharacterLink(ch);
+    ch.id = newId();
+    const hash = encodeCharacter(ch);
+    const link = buildCharacterLinkFromHash(hash);
 
     if (link.length > MAX_URL_LENGTH) {
         showToast('Ссылка длинная (' + link.length + ' символов)');
@@ -148,23 +149,24 @@ function duplicateCharacter(item) {
         id: ch.id,
         title: (item.title || 'Персонаж') + ' (копия)',
         date: new Date().toISOString(),
-        url: link
+        data: hash
     });
     saveGallery(list);
     render();
 }
 
 async function copyCharacterLink(item) {
+    const link = buildCharacterLinkFromHash(slotHash(item));
     try {
-        await navigator.clipboard.writeText(item.url);
+        await navigator.clipboard.writeText(link);
         showToast('Ссылка скопирована');
     } catch (e) {
-        prompt('Скопируйте ссылку:', item.url);
+        prompt('Скопируйте ссылку:', link);
     }
 }
 
 async function deleteCharacter(item) {
-    if (!(await showConfirm(`Удалить «${cardTitle(item, decodeLink(item.url))}»?`))) return;
+    if (!(await showConfirm(`Удалить «${cardTitle(item, decodeHash(slotHash(item)))}»?`))) return;
     saveGallery(getGallery().filter(x => x.id !== item.id));
     render();
 }
@@ -200,12 +202,22 @@ async function importFile(event) {
 
     const list = getGallery();
     const ids = new Set(list.map(x => x.id));
+    let added = 0;
+
     for (const item of incoming) {
-        if (item && item.id && item.url && !ids.has(item.id)) list.push(item);
+        // принимаем и новый формат (data), и старый (url)
+        if (item && item.id && (item.data || item.url) && !ids.has(item.id)) {
+            list.push(item);
+            ids.add(item.id);
+            added++;
+        }
     }
+
     saveGallery(list);
     render();
     event.target.value = '';
+
+    showToast(added > 0 ? ('Импортировано: ' + added) : 'Новых записей нет');
 }
 
 function cardTitle(item, ch) {

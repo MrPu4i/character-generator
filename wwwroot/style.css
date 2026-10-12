@@ -419,3 +419,97 @@ main {
     color: #888;
     font-size: 0.85rem;
 }
+
+/* ===== Мобильная вёрстка ===== */
+
+html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* чтобы двойной тап открывал редактирование, а не приближал страницу */
+button,
+.prop,
+.prop-value,
+.card-actions button,
+.expand,
+.regen {
+    touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+    main {
+        padding: 12px;
+    }
+
+    h1 {
+        font-size: 1.2rem;
+    }
+
+    .topbar {
+        flex-wrap: wrap;
+    }
+
+    /* карточка: заголовок сверху, описание и кнопки — во всю ширину */
+    .card {
+        align-items: flex-start;
+    }
+
+    .card-body {
+        min-width: 0;
+    }
+
+    .card-desc {
+        flex: 1 1 100%;
+        min-width: 0;
+        text-align: left;
+    }
+
+    .card-actions {
+        flex: 1 1 100%;
+    }
+
+    .card-actions button {
+        flex: 1 1 45%;
+    }
+
+    /* кнопки действий — по две в ряд, крупные для пальца */
+    .actions button {
+        flex: 1 1 calc(50% - 4px);
+        min-width: 0;
+        padding: 12px 10px;
+    }
+
+    /* панель «Показать» — во всю ширину экрана */
+    .panel {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .prop-row {
+        padding: 10px 12px;
+    }
+
+    /* удобные тап-цели */
+    #create,
+    #create-first,
+    #generate,
+    .actions button,
+    .card-actions button,
+    .modal-buttons button,
+    .panel-actions button {
+        min-height: 42px;
+    }
+
+    .modal-box {
+        padding: 16px;
+    }
+
+    .modal-buttons {
+        justify-content: stretch;
+    }
+
+    .modal-buttons button {
+        flex: 1 1 45%;
+    }
+}
