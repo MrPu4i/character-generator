@@ -9,7 +9,8 @@ public record CharacterDto(
 
 public record GenerateRequest(
     Dictionary<string, bool>? Show,
-    Dictionary<string, string>? Fix);
+    Dictionary<string, string>? Fix,
+    Dictionary<string, string>? Preset);
 
 public record RegenerateRequest(
     int? V,

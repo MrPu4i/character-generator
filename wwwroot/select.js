@@ -1,4 +1,15 @@
 let catalog = [];
+const rootSelections = {};   // prop_key -> val_key (нет ключа = «случайно»)
+
+const ICONS = {
+    race: { human: '🧑', elf: '🧝', dwarf: '⛏️' },
+    gender: { male: '♂️', female: '♀️', nonbinary: '⚧️' },
+    origin: { noble: '👑', commoner: '🌾', artisan: '🔨' }
+};
+
+function iconFor(propKey, valKey) {
+    return (ICONS[propKey] && ICONS[propKey][valKey]) || '🎭';
+}
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -6,14 +17,95 @@ async function init() {
     const response = await fetch('/api/catalog');
     catalog = await response.json();
 
-    const rootBlocks = catalog.filter(b => b.isRoot);
-    const otherBlocks = catalog.filter(b => !b.isRoot);
-
-    renderBlocks(document.getElementById('root-blocks'), rootBlocks, true);
-    renderBlocks(document.getElementById('other-blocks'), otherBlocks, false);
-
-    document.querySelectorAll('#other-blocks .block').forEach(b => updateBlockState(b));
+    renderRootChoices();
+    renderShowBlocks();
     document.getElementById('generate').addEventListener('click', generate);
+}
+
+// ---------- левая колонка: основные черты ----------
+
+function renderRootChoices() {
+    const container = document.getElementById('root-choices');
+    container.innerHTML = '';
+
+    for (const block of catalog.filter(b => b.isRoot)) {
+        for (const prop of block.properties.filter(p => !p.isService)) {
+            container.appendChild(renderRootProp(prop));
+        }
+    }
+}
+
+function isNumericProp(prop) {
+    return prop.values.length > 0 && prop.values.every(v => v.text !== '' && !isNaN(Number(v.text)));
+}
+
+function renderRootProp(prop) {
+    const wrap = document.createElement('div');
+    wrap.className = 'root-prop';
+
+    const title = document.createElement('div');
+    title.className = 'root-prop-title';
+    title.textContent = prop.title;
+    wrap.appendChild(title);
+
+    // числовое свойство (например, возраст) — поле ввода
+    if (isNumericProp(prop)) {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'root-number';
+        input.placeholder = 'случайно';
+        input.min = '0';
+        input.addEventListener('input', () => {
+            if (input.value.trim() === '') delete rootSelections[prop.propKey];
+            else rootSelections[prop.propKey] = input.value.trim();
+        });
+        wrap.appendChild(input);
+        return wrap;
+    }
+
+    // списочное свойство — сетка иконок + названий
+    const choices = document.createElement('div');
+    choices.className = 'choices';
+    choices.appendChild(makeChoice(prop, null, '🎲', 'Случайно', true));
+
+    for (const value of prop.values) {
+        choices.appendChild(makeChoice(prop, value.valKey, iconFor(prop.propKey, value.valKey), value.text));
+    }
+
+    wrap.appendChild(choices);
+    return wrap;
+}
+
+function makeChoice(prop, valKey, icon, label, isRandom = false) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'choice' + (isRandom ? ' selected' : '');
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'choice-icon';
+    iconEl.textContent = icon;
+    btn.appendChild(iconEl);
+
+    const nameEl = document.createElement('span');
+    nameEl.textContent = label;
+    btn.appendChild(nameEl);
+
+    btn.addEventListener('click', () => {
+        btn.closest('.choices').querySelectorAll('.choice').forEach(c => c.classList.remove('selected'));
+        btn.classList.add('selected');
+
+        if (valKey) rootSelections[prop.propKey] = valKey;
+        else delete rootSelections[prop.propKey];
+    });
+
+    return btn;
+}
+
+// ---------- правая колонка: что показывать ----------
+
+function renderShowBlocks() {
+    renderBlocks(document.getElementById('other-blocks'), catalog.filter(b => !b.isRoot), false);
+    document.querySelectorAll('#other-blocks .block').forEach(b => updateBlockState(b));
 }
 
 function renderBlocks(container, blocks, isRoot) {
@@ -43,13 +135,6 @@ function renderBlocks(container, blocks, isRoot) {
         title.textContent = block.title;
         head.appendChild(title);
 
-        if (isRoot) {
-            const lock = document.createElement('span');
-            lock.className = 'lock';
-            lock.textContent = '🔒 обязательно';
-            head.appendChild(lock);
-        }
-
         const expandIcon = document.createElement('button');
         expandIcon.type = 'button';
         expandIcon.className = 'expand';
@@ -73,7 +158,6 @@ function renderBlocks(container, blocks, isRoot) {
             const check = document.createElement('input');
             check.type = 'checkbox';
             check.checked = true;
-            check.disabled = isRoot;
             check.dataset.prop = prop.propKey;
             check.addEventListener('change', () => updateBlockState(blockEl));
             row.appendChild(check);
@@ -93,12 +177,12 @@ function renderBlocks(container, blocks, isRoot) {
 function updateBlockState(blockEl) {
     const checks = [...blockEl.querySelectorAll('.prop input')];
     const blockCheck = blockEl.querySelector('.block-check');
-    const checkedCount = checks.filter(c => c.checked).length;
+    const counted = checks.filter(c => c.checked).length;
 
-    if (checkedCount === 0) {
+    if (counted === 0) {
         blockCheck.checked = false;
         blockCheck.indeterminate = false;
-    } else if (checkedCount === checks.length) {
+    } else if (counted === checks.length) {
         blockCheck.checked = true;
         blockCheck.indeterminate = false;
     } else {
@@ -107,16 +191,29 @@ function updateBlockState(blockEl) {
     }
 }
 
+// ---------- генерация ----------
+
 async function generate() {
     const show = {};
-    document.querySelectorAll('.prop input').forEach(c => { show[c.dataset.prop] = c.checked; });
+
+    // основные черты показываем всегда
+    for (const block of catalog.filter(b => b.isRoot)) {
+        for (const prop of block.properties) {
+            if (!prop.isService) show[prop.propKey] = true;
+        }
+    }
+
+    // остальные — по галочкам
+    document.querySelectorAll('#other-blocks .prop input').forEach(c => {
+        show[c.dataset.prop] = c.checked;
+    });
 
     const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ show })
+        body: JSON.stringify({ show, preset: rootSelections })
     });
     const character = await response.json();
 
-    location.href = buildCharacterLink(character);   // уходим по ссылке с персонажем
+    location.href = buildCharacterLink(character);
 }

@@ -11,14 +11,18 @@
 <body>
     <main>
         <p><a href="index.html">← На главную</a></p>
+        <p class="hint">Выберите основные черты и то, что показывать</p>
 
-        <p class="hint">Выберите свойства или блоки, которые хотите сгенерировать</p>
-
-        <h2>Основные черты <span class="lock">🔒 обязательно</span></h2>
-        <div id="root-blocks"></div>
-
-        <h2>Что показать</h2>
-        <div id="other-blocks"></div>
+        <div class="select-layout">
+            <section class="select-col">
+                <h2>Основные черты</h2>
+                <div id="root-choices"></div>
+            </section>
+            <section class="select-col">
+                <h2>Что показать</h2>
+                <div id="other-blocks"></div>
+            </section>
+        </div>
 
         <button id="generate" type="button">Сгенерировать</button>
     </main>

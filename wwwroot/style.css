@@ -513,3 +513,72 @@ button,
         flex: 1 1 45%;
     }
 }
+
+.select-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+    margin-bottom: 16px;
+}
+
+.root-prop {
+    margin-bottom: 14px;
+}
+
+.root-prop-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.choice {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 8px;
+    cursor: pointer;
+    font: inherit;
+}
+
+.choice.selected {
+    border-color: #3b5bdb;
+    background: #e7ecff;
+    color: #22307a;
+}
+
+.choice-icon {
+    font-size: 1.1rem;
+}
+
+.root-number {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font: inherit;
+}
+
+@media (max-width: 900px) {
+    .select-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.topbar button {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1px solid #3b5bdb;
+    background: #fff;
+    color: #3b5bdb;
+    cursor: pointer;
+    font: inherit;
+}

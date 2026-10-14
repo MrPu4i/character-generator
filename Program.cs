@@ -56,7 +56,7 @@ app.MapGet("/api/catalog", (CatalogRepository repo) => repo.GetCatalog());
 app.MapPost("/api/generate", (GenerateRequest req, GenerationEngine engine) =>
 {
     var fix = req.Fix ?? new Dictionary<string, string>();
-    var result = engine.Generate(fix);
+    var result = engine.Generate(fix, req.Preset);
     return new CharacterDto(1, result.Val, req.Show ?? AllShown(engine), result.Fix, null);
 });
 

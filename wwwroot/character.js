@@ -29,6 +29,7 @@ async function init() {
     document.getElementById('update').addEventListener('click', updateSlot);
     document.getElementById('save-as-new').addEventListener('click', saveAsNew);
     document.getElementById('delete').addEventListener('click', deleteSlot);
+    document.getElementById('prompt').addEventListener('click', copyPrompt);
 
     document.getElementById('panel-toggle').addEventListener('click', openPanel);
     document.getElementById('panel-apply').addEventListener('click', applyShow);
@@ -511,4 +512,36 @@ async function resolveConflict() {
     saveGallery(list);
     slot = item;
     return true;
+}
+
+// ---------- промпт для ИИ-генератора картинок ----------
+
+function buildPrompt() {
+    const lines = ['Нарисуй фэнтезийного персонажа по описанию:'];
+
+    for (const block of catalog) {
+        for (const prop of block.properties) {
+            if (prop.isService) continue;
+            if (!character.show[prop.propKey]) continue;   // только то, что пользователь выбрал показывать
+
+            const text = displayValue(prop, effective(character, prop.propKey));
+            if (!text || text === '—') continue;
+
+            lines.push('- ' + prop.title + ': ' + text);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function copyPrompt() {
+    const text = buildPrompt();
+
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast('Промпт скопирован');
+    } catch (e) {
+        // если браузер не дал доступ к буферу — покажем текст, чтобы скопировать вручную
+        openModal(text, [{ label: 'Закрыть', value: true, primary: true }]);
+    }
 }

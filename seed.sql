@@ -27,7 +27,8 @@ INSERT INTO prop_values (prop_id, val_key, text, weight, tags) VALUES
 -- ===== Пол =====
 INSERT INTO prop_values (prop_id, val_key, text, weight, tags) VALUES
 ((SELECT prop_id FROM properties WHERE prop_key='gender'), 'male',   'Мужской', 1, NULL),
-((SELECT prop_id FROM properties WHERE prop_key='gender'), 'female', 'Женский', 1, NULL);
+((SELECT prop_id FROM properties WHERE prop_key='gender'), 'female', 'Женский', 1, NULL),
+((SELECT prop_id FROM properties WHERE prop_key='gender'), 'nonbinary', 'Небинарный', 1, NULL);
 
 -- ===== Возраст =====
 INSERT INTO prop_values (prop_id, val_key, text, weight, tags) VALUES

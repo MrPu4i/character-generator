@@ -34,15 +34,17 @@ public class GenerationEngine
     public IReadOnlyCollection<string> PropertyKeys => _byKey.Keys;
 
     public GenerationResult Generate(
-        Dictionary<string, string>? fix = null,
-        int? seed = null)
-        => Regenerate(new Dictionary<string, string>(), fix, blockKey: null, seed);
+    Dictionary<string, string>? fix = null,
+    Dictionary<string, string>? preset = null,
+    int? seed = null)
+    => Regenerate(new Dictionary<string, string>(), fix, blockKey: null, preset, seed);
 
     // existingVal Ч что уже есть; dirty Ч что перебрасываем заново
     public GenerationResult Regenerate(
         Dictionary<string, string> existingVal,
         Dictionary<string, string>? fix,
         string? blockKey,
+        Dictionary<string, string>? preset = null,
         int? seed = null)
     {
         fix ??= new Dictionary<string, string>();
@@ -57,10 +59,18 @@ public class GenerationEngine
         {
             string generated;
 
-            if (!dirty.Contains(prop.PropKey) &&
-                existingVal.TryGetValue(prop.PropKey, out var keep))
+            if (fix.TryGetValue(prop.PropKey, out var fixedValue))
             {
-                generated = keep;
+                generated = fixedValue;                 // правка пользовател€
+            }
+            else if (preset != null && preset.TryGetValue(prop.PropKey, out var presetValue))
+            {
+                generated = presetValue;                // выбранна€ Ђосновна€ чертаї
+            }
+            else if (!dirty.Contains(prop.PropKey) &&
+                     existingVal.TryGetValue(prop.PropKey, out var keep))
+            {
+                generated = keep;                       // не трогаем при перегенерации блока
             }
             else
             {
@@ -76,7 +86,7 @@ public class GenerationEngine
 
             val[prop.PropKey] = generated;
             effective[prop.PropKey] =
-                fix.TryGetValue(prop.PropKey, out var fixedValue) ? fixedValue : generated;
+                fix.TryGetValue(prop.PropKey, out var f) ? f : generated;
         }
 
         return new GenerationResult(val, fix, mode);
