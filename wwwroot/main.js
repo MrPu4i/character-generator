@@ -5,9 +5,6 @@ const RACE_EMOJI = { human: '🧑', elf: '🧝', dwarf: '⛏️' };
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-    const response = await fetch('/api/catalog');
-    catalog = await response.json();
-
     document.getElementById('create').addEventListener('click', goToSelect);
     document.getElementById('create-first').addEventListener('click', goToSelect);
     document.getElementById('export').addEventListener('click', exportList);
@@ -15,7 +12,19 @@ async function init() {
         document.getElementById('import-file').click());
     document.getElementById('import-file').addEventListener('change', importFile);
 
-    render();
+    render();        // карточки из localStorage, даже без каталога
+    loadCatalog();   // потом — красивые подписи, если сервер ответил
+}
+
+async function loadCatalog() {
+    try {
+        const response = await fetch('/api/catalog');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        catalog = await response.json();
+        render();
+    } catch (e) {
+        catalog = [];   // сервер недоступен — остаёмся в «машинном» виде
+    }
 }
 
 function goToSelect() {
@@ -66,10 +75,11 @@ function renderCard(item) {
     const parts = [];
     if (ch) {
         for (const key of ['race', 'origin', 'age']) {
+            const raw = effective(ch, key);
+            if (raw === undefined || raw === null || raw === '') continue;
+
             const prop = findProp(catalog, key);
-            if (!prop) continue;
-            const text = displayValue(prop, effective(ch, key));
-            if (text && text !== '—') parts.push(text);
+            parts.push(prop ? displayValue(prop, raw) : raw);
         }
     }
     meta.textContent = parts.join(' · ');

@@ -6,55 +6,147 @@ let slot = null;
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-    const response = await fetch('/api/catalog');
-    catalog = await response.json();
-
     character = decodeCharacterFromHash();
     if (!character) {
         location.replace('index.html');
         return;
     }
 
-    fillMissingShow(character, catalog);
-
     slot = character.id ? findSlotById(character.id) : null;
 
-    // конфликт: персонаж есть в коллекции, но ссылка другая
     if (slot && hashOf(location.href) !== slotHash(slot)) {
         const resolved = await resolveConflict();
-        if (!resolved) return;   // отмена — уже ушли на главную
+        if (!resolved) return;
     }
+
+    fillMissingShow(character);   // по ключам из val, каталог не нужен
 
     document.getElementById('create').addEventListener('click', createSlot);
     document.getElementById('update').addEventListener('click', updateSlot);
     document.getElementById('save-as-new').addEventListener('click', saveAsNew);
     document.getElementById('delete').addEventListener('click', deleteSlot);
-    document.getElementById('prompt').addEventListener('click', copyPrompt);
 
     document.getElementById('panel-toggle').addEventListener('click', openPanel);
     document.getElementById('panel-apply').addEventListener('click', applyShow);
     document.getElementById('panel-cancel').addEventListener('click', closePanel);
     document.getElementById('panel-backdrop').addEventListener('click', closePanel);
 
-    render();
+    document.getElementById('prompt').addEventListener('click', copyPrompt);
+
+    updateRemoteAvailability();
+    render();             // сначала «машинный» вид
     updateActions();
     updateLinkWarning();
+
+    loadCatalog();        // затем — попытка получить каталог
+}
+
+async function loadCatalog() {
+    try {
+        const response = await fetch('/api/catalog');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        catalog = await response.json();
+        fillMissingShow(character, catalog);
+        updateRemoteAvailability();
+        render();             // перерисовываем красиво
+        updateActions();
+    } catch (e) {
+        catalog = [];
+        updateRemoteAvailability();
+        showToast('Сервер недоступен: показаны значения из ссылки');
+    }
+}
+
+function updateRemoteAvailability() {
+    const available = catalog.length > 0;
+
+    const promptBtn = document.getElementById('prompt');
+    if (promptBtn) {
+        promptBtn.disabled = !available;
+        promptBtn.title = available
+            ? 'Скопировать промпт для ИИ-генератора картинок'
+            : 'Нет доступа к серверу';
+    }
+
+    const panelBtn = document.getElementById('panel-toggle');
+    if (panelBtn) {
+        panelBtn.disabled = !available;
+        panelBtn.title = available ? '' : 'Нет доступа к серверу';
+    }
 }
 
 // ---------- рендер ----------
+
+
+
+function startEdit(row, item) {
+    const { propKey, prop } = item;
+
+    const valueEl = row.querySelector('.prop-value');
+    const raw = effective(character, propKey);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'edit-input';
+    input.value = prop ? valueText(prop, raw) : (raw === undefined || raw === null ? '' : String(raw));
+
+    valueEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const before = input.value;
+
+    let finished = false;
+    function finish(save) {
+        if (finished) return;
+        finished = true;
+
+        if (save && input.value !== before) {
+            character.fix[propKey] = input.value;
+            markDirty();
+        }
+
+        render();
+    }
+
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') finish(true);
+        else if (e.key === 'Escape') finish(false);
+    });
+    input.addEventListener('blur', () => finish(true));
+}
 
 function render() {
     const content = document.getElementById('content');
     content.innerHTML = '';
 
-    let shownBlocks = 0;
+    let blocksInfo;
 
-    for (const block of catalog) {
-        const shown = block.properties.filter(p => !p.isService && character.show[p.propKey]);
-        if (shown.length === 0 && !block.isRoot) continue;
+    if (catalog.length > 0) {
+        blocksInfo = catalog
+            .map(block => ({
+                title: block.title,
+                isRoot: block.isRoot,
+                block: block,
+                canRegenerate: true,
+                props: block.properties
+                    .filter(p => !p.isService && character.show[p.propKey])
+                    .map(p => ({ propKey: p.propKey, title: p.title, prop: p }))
+            }))
+            .filter(b => b.props.length > 0 || b.isRoot);
+    } else {
+        // каталога нет — показываем ключи прямо из ссылки
+        const keys = Object.keys(character.val).filter(k => character.show[k] !== false);
+        blocksInfo = [{
+            title: 'Значения персонажа',
+            isRoot: true,
+            block: null,
+            canRegenerate: false,
+            props: keys.map(k => ({ propKey: k, title: k, prop: null }))
+        }];
+    }
 
-        shownBlocks++;
-
+    for (const info of blocksInfo) {
         const blockEl = document.createElement('section');
         blockEl.className = 'block';
 
@@ -63,28 +155,32 @@ function render() {
 
         const title = document.createElement('span');
         title.className = 'block-title';
-        title.textContent = block.title;
+        title.textContent = info.title;
         head.appendChild(title);
 
-        const regen = document.createElement('button');
-        regen.type = 'button';
-        regen.className = 'regen';
-        regen.title = 'Перегенерировать блок';
-        regen.textContent = '🎲';
-        regen.addEventListener('click', () => regenerateBlock(block));
-        head.appendChild(regen);
+        if (info.canRegenerate) {
+            const regen = document.createElement('button');
+            regen.type = 'button';
+            regen.className = 'regen';
+            regen.title = 'Перегенерировать блок';
+            regen.textContent = '🎲';
+            regen.addEventListener('click', () => regenerateBlock(info.block));
+            head.appendChild(regen);
+        }
 
         blockEl.appendChild(head);
 
         const propsEl = document.createElement('div');
         propsEl.className = 'props open';
-        for (const prop of shown) propsEl.appendChild(renderProp(prop));
+        for (const item of info.props) propsEl.appendChild(renderRow(item));
         blockEl.appendChild(propsEl);
 
         content.appendChild(blockEl);
     }
 
-    if (shownBlocks === 1) {
+    // подсказка, если дополнительные блоки скрыты
+    const nonRootWithProps = blocksInfo.filter(b => !b.isRoot && b.props.length > 0).length;
+    if (catalog.length > 0 && nonRootWithProps === 0) {
         const note = document.createElement('p');
         note.className = 'hint';
         note.textContent = 'Дополнительные блоки скрыты. Нажмите «Показать», чтобы вернуть их.';
@@ -92,23 +188,26 @@ function render() {
     }
 }
 
-function renderProp(prop) {
+function renderRow(item) {
+    const { propKey, title, prop } = item;
+
     const row = document.createElement('div');
     row.className = 'prop-row';
 
     const name = document.createElement('span');
     name.className = 'prop-name';
-    name.textContent = prop.title + ':';
+    name.textContent = title + ':';
     row.appendChild(name);
 
-    const edited = Object.prototype.hasOwnProperty.call(character.fix, prop.propKey);
-    const raw = effective(character, prop.propKey);
+    const edited = Object.prototype.hasOwnProperty.call(character.fix, propKey);
+    const raw = effective(character, propKey);
 
     const valueEl = document.createElement('span');
     valueEl.className = 'prop-value';
-    valueEl.textContent = displayValue(prop, raw);
+    valueEl.textContent = prop ? displayValue(prop, raw) : rawDisplay(raw);
     valueEl.title = 'Двойной клик — изменить';
-    valueEl.addEventListener('dblclick', () => startEdit(row, prop));
+    valueEl.addEventListener('dblclick', () => startEdit(row, item));
+
     if (edited) {
         const mark = document.createElement('span');
         mark.className = 'edited';
@@ -124,7 +223,7 @@ function renderProp(prop) {
         revert.title = 'Вернуть сгенерированное';
         revert.textContent = '↺';
         revert.addEventListener('click', () => {
-            delete character.fix[prop.propKey];
+            delete character.fix[propKey];
             markDirty();
             render();
         });
@@ -134,37 +233,9 @@ function renderProp(prop) {
     return row;
 }
 
-function startEdit(row, prop) {
-    const valueEl = row.querySelector('.prop-value');
-    const raw = effective(character, prop.propKey);
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'edit-input';
-    input.value = valueText(prop, raw);
-
-    valueEl.replaceWith(input);
-    input.focus();
-    input.select();
-
-    const before = input.value;
-
-    let finished = false;
-    function finish(save) {
-        if (finished) return;
-        finished = true;
-        if (save && input.value !== before) {
-            character.fix[prop.propKey] = input.value;
-            markDirty();
-        }
-        render();
-    }
-
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') finish(true);
-        else if (e.key === 'Escape') finish(false);
-    });
-    input.addEventListener('blur', () => finish(true));
+function rawDisplay(raw) {
+    if (raw === undefined || raw === null || raw === '') return '—';
+    return String(raw);
 }
 
 // ---------- состояние кнопок ----------
@@ -265,13 +336,10 @@ async function deleteSlot() {
 // ---------- перегенерация блоков ----------
 
 async function applyGenerate(fix, show) {
-    const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fix, show })
-    });
-    const result = await response.json();
-    character = { ...result, id: character.id };   // id слота сохраняем
+    const result = await apiPost('/api/generate', { fix, show });
+    if (!result) return;
+
+    character = { ...result, id: character.id };
     markDirty();
     render();
 }
@@ -318,27 +386,30 @@ async function regenerateBlock(block) {
     const newFix = { ...character.fix };
     for (const k of ownKeys) delete newFix[k];
 
-    const response = await fetch('/api/regenerate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            v: character.v,
-            id: character.id,
-            val: character.val,
-            show: character.show,
-            fix: newFix,
-            block: block.blockKey
-        })
+    const result = await apiPost('/api/regenerate', {
+        v: character.v,
+        id: character.id,
+        val: character.val,
+        show: character.show,
+        fix: newFix,
+        block: block.blockKey
     });
 
-    const result = await response.json();
+    if (!result) return;
+
     character = { ...result, id: character.id };
-    markDirty();
+    persistToLink();
+    dirty = false;
     render();
+    updateActions();
 }
 // ---------- боковая панель «Показать» ----------
 
 function openPanel() {
+    if (catalog.length === 0) {
+        showToast('Нет доступа к серверу');
+        return;
+    }
     const rootPanel = document.getElementById('panel-root');
     const otherPanel = document.getElementById('panel-other');
     rootPanel.innerHTML = '';
@@ -535,6 +606,10 @@ function buildPrompt() {
 }
 
 async function copyPrompt() {
+    if (catalog.length === 0) {
+        showToast('Нет доступа к серверу');
+        return;
+    }
     const text = buildPrompt();
 
     try {
@@ -543,5 +618,22 @@ async function copyPrompt() {
     } catch (e) {
         // если браузер не дал доступ к буферу — покажем текст, чтобы скопировать вручную
         openModal(text, [{ label: 'Закрыть', value: true, primary: true }]);
+    }
+}
+
+// ---------- ошибки при перегенрации ----------
+
+async function apiPost(url, body) {
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return await response.json();
+    } catch (e) {
+        showToast('Сервер временно недоступен');
+        return null;
     }
 }

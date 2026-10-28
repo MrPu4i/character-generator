@@ -14,12 +14,31 @@ function iconFor(propKey, valKey) {
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-    const response = await fetch('/api/catalog');
-    catalog = await response.json();
+    try {
+        const response = await fetch('/api/catalog');
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        catalog = await response.json();
+    } catch (e) {
+        showServerDown();
+        return;
+    }
 
     renderRootChoices();
     renderShowBlocks();
     document.getElementById('generate').addEventListener('click', generate);
+}
+
+function showServerDown() {
+    const main = document.querySelector('main');
+    const msg = document.createElement('div');
+    msg.className = 'warning';
+    msg.textContent = 'Сервер недоступен. Генерация персонажа временно невозможна — попробуйте позже.';
+
+    const layout = main.querySelector('.select-layout');
+    main.insertBefore(msg, layout || main.firstChild);
+
+    const btn = document.getElementById('generate');
+    if (btn) btn.disabled = true;
 }
 
 // ---------- левая колонка: основные черты ----------

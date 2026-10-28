@@ -242,10 +242,14 @@ function showPrompt(text, options = {}) {
 }
 
 function fillMissingShow(character, catalog) {
-    for (const block of catalog) {
-        for (const prop of block.properties) {
-            if (!(prop.propKey in character.show)) {
-                character.show[prop.propKey] = true;   // новое свойство — по умолчанию показано
+    for (const key of Object.keys(character.val || {})) {
+        if (!(key in character.show)) character.show[key] = true;
+    }
+
+    if (catalog) {
+        for (const block of catalog) {
+            for (const prop of block.properties) {
+                if (!(prop.propKey in character.show)) character.show[prop.propKey] = true;
             }
         }
     }
