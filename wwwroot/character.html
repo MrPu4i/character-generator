@@ -8,15 +8,22 @@
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body>
-    <main>
-        <div class="topbar">
-            <a href="index.html">← На главную</a>
-            <button id="panel-toggle" type="button">Показать</button>
+<body class="page page-character">
+    <div class="character-nav">
+        <a href="index.html">← На главную</a>
+        <div class="character-tools">
+            <button id="panel-toggle" type="button">Содержание</button>
             <button id="prompt" type="button" title="Скопировать промпт для ИИ-генератора картинок">Промпт</button>
         </div>
+    </div>
 
-        <p class="hint">Двойной клик по значению — изменить. 🎲 у блока — перегенерировать блок.</p>
+    <main>
+
+        <header class="sheet-header">
+            <h1 id="sheet-name">Лист персонажа</h1>
+        </header>
+
+        <p class="hint">Двойной клик по значению — изменить. ⟲ у блока — перегенерировать блок.</p>
         <p class="hint">Пока вы не нажали кнопку "Обновить текущего персонажа", изменения не сохраняются. </p>
 
         <div id="link-warning" class="warning hidden"></div>
@@ -24,7 +31,7 @@
         <div id="content"></div>
 
         <div class="actions">
-            <button id="create" type="button">Сохранить персонажа в галлерею</button>
+            <button id="create" type="button">Сохранить персонажа в галерею</button>
             <button id="update" type="button">Обновить текущего персонажа</button>
             <button id="save-as-new" type="button">Сохранить как нового</button>
             <button id="delete" type="button">Удалить</button>

@@ -232,11 +232,8 @@ async function importFile(event) {
 
 function cardTitle(item, ch) {
     if (ch) {
-        const nameProp = findProp(catalog, 'name');
-        if (nameProp) {
-            const text = displayValue(nameProp, effective(ch, 'name'));
-            if (text && text !== '—') return text;
-        }
+        const full = characterFullName(ch, catalog);
+        if (full) return full;
     }
     return item.title || 'Безымянный персонаж';
 }

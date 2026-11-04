@@ -163,7 +163,7 @@ function render() {
             regen.type = 'button';
             regen.className = 'regen';
             regen.title = 'Перегенерировать блок';
-            regen.textContent = '🎲';
+            regen.textContent = '⟲';
             regen.addEventListener('click', () => regenerateBlock(info.block));
             head.appendChild(regen);
         }
@@ -186,6 +186,13 @@ function render() {
         note.textContent = 'Дополнительные блоки скрыты. Нажмите «Показать», чтобы вернуть их.';
         content.appendChild(note);
     }
+    updateSheetName();
+}
+
+function updateSheetName() {
+    const el = document.getElementById('sheet-name');
+    if (!el) return;
+    el.textContent = characterFullName(character, catalog) || 'Лист персонажа';
 }
 
 function renderRow(item) {

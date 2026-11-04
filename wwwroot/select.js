@@ -36,6 +36,7 @@ function showServerDown() {
 
     const layout = main.querySelector('.select-layout');
     main.insertBefore(msg, layout || main.firstChild);
+    if (layout) layout.classList.add('hidden');
 
     const btn = document.getElementById('generate');
     if (btn) btn.disabled = true;

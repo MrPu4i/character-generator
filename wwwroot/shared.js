@@ -98,6 +98,25 @@ function displayValue(prop, raw) {
     return prop.unit ? text + ' ' + prop.unit : text;
 }
 
+function characterFullName(character, catalog) {
+    if (!character) return '';
+
+    const nameProp = findProp(catalog, 'name');
+    const surnameProp = findProp(catalog, 'surname');
+
+    const name = nameProp
+        ? displayValue(nameProp, effective(character, 'name'))
+        : '';
+    const surname = surnameProp
+        ? displayValue(surnameProp, effective(character, 'surname'))
+        : '';
+
+    return [name, surname]
+        .filter(v => v && v !== '—')
+        .join(' ')
+        .trim();
+}
+
 // ===== Коллекция (слоты) =====
 
 function getGallery() {
