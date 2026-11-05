@@ -2,13 +2,13 @@ let catalog = [];
 const rootSelections = {};   // prop_key -> val_key (нет ключа = «случайно»)
 
 const ICONS = {
-    race: { human: '🧑', elf: '🧝', dwarf: '⛏️' },
-    gender: { male: '♂️', female: '♀️', nonbinary: '⚧️' },
-    origin: { noble: '👑', commoner: '🌾', artisan: '🔨' }
+    race: { human: '♜', elf: '♞', dwarf: '♚' },
+    gender: { male: '♂', female: '♀', nonbinary: '☿' },
+    origin: { noble: '♛', commoner: '✿', artisan: '☭' }
 };
 
 function iconFor(propKey, valKey) {
-    return (ICONS[propKey] && ICONS[propKey][valKey]) || '🎭';
+    return (ICONS[propKey] && ICONS[propKey][valKey]) || '☺';
 }
 
 document.addEventListener('DOMContentLoaded', init);
@@ -86,7 +86,7 @@ function renderRootProp(prop) {
     // списочное свойство — сетка иконок + названий
     const choices = document.createElement('div');
     choices.className = 'choices';
-    choices.appendChild(makeChoice(prop, null, '🎲', 'Случайно', true));
+    choices.appendChild(makeChoice(prop, null, '?', 'Случайно', true));
 
     for (const value of prop.values) {
         choices.appendChild(makeChoice(prop, value.valKey, iconFor(prop.propKey, value.valKey), value.text));

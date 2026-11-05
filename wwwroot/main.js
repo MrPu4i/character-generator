@@ -1,6 +1,6 @@
 let catalog = [];
 
-const RACE_EMOJI = { human: '🧑', elf: '🧝', dwarf: '⛏️' };
+const RACE_EMOJI = { human: '♜', elf: '♞', dwarf: '♚' };
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -59,7 +59,7 @@ function renderCard(item) {
     const emblem = document.createElement('div');
     emblem.className = 'card-emblem';
     const raceKey = ch ? effective(ch, 'race') : null;
-    emblem.textContent = (raceKey && RACE_EMOJI[raceKey]) || '🎭';
+    emblem.textContent = (raceKey && RACE_EMOJI[raceKey]) || '☺';
     card.appendChild(emblem);
 
     const body = document.createElement('div');
